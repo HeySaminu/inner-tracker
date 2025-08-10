@@ -47,18 +47,51 @@ import {
  */
 
 // Types
-export type HabitKind = 'inner' | 'outer'
-export type Habit = { id: string; name: string; enabled: boolean; kind: HabitKind }
-export type ChecklistItem = { id: string; text: string; done: boolean }
-export type ChecklistSection = { id: string; type: 'checklist'; title: string; items: ChecklistItem[] }
-export type NotesSection = { id: string; type: 'notes'; title: string; text: string }
-export type NumberSection = { id: string; type: 'number'; title: string; value: number }
-export type Section = ChecklistSection | NotesSection | NumberSection
+export type HabitKind = "inner" | "outer";
+export type Habit = { id: string; name: string; enabled: boolean; kind: HabitKind };
+export type ChecklistItem = { id: string; text: string; done: boolean };
+export type ChecklistSection = { id: string; type: "checklist"; title: string; items: ChecklistItem[] };
+export type NotesSection = { id: string; type: "notes"; title: string; text: string };
+export type NumberSection = { id: string; type: "number"; title: string; value: number };
+export type Section = ChecklistSection | NotesSection | NumberSection;
+
+export type WeekState = {
+  meta: { weekStart: string; createdAt: string; theme: string; logoDataUrl: string };
+  metrics: {
+    realMetricLabel: string;
+    realMetricValue: string;
+    screenTimeTarget: string;
+    dailyInnerMinutes: number[];
+    innerShareEstimate: number;
+  };
+  habits: Habit[];
+  ticks: Record<string, boolean[]>;
+  sections: Section[];
+  oneTime: {
+    whysTopic: string;
+    rootCause: string;
+    vanityFrom: string;
+    realTo: string;
+    seam: string;
+    bridgeAction: string;
+    bridgeWhen: string;
+  };
+  wins: string[];
+  reflection: {
+    helped: string;
+    overPolish: string;
+    stop: string;
+    cont: string;
+    start: string;
+    nextInnerShare: number;
+    commitment: string;
+  };
+};
 
 // Brand theme inspired by your logo (mint→sky)
 const BRAND_FROM = "#C7F36B"; // mint‑green
-const BRAND_TO = "#6FD3FF";   // sky‑blue
-const BRAND_TEXT = "#0B1220";  // deep ink for contrast
+const BRAND_TO = "#6FD3FF"; // sky‑blue
+const BRAND_TEXT = "#0B1220"; // deep ink for contrast
 
 // Defaults
 const DEFAULT_HABITS: Habit[] = [
@@ -73,8 +106,27 @@ const DEFAULT_HABITS: Habit[] = [
   { id: "publish", name: "Post something public", enabled: false, kind: "outer" },
 ];
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; // Monday‑start
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const; // Monday‑start
 
+type LocalStateSetter<T> = Dispatch<SetStateAction<T>>;
+function useLocalState<T>(key: string, initial: T): [T, LocalStateSetter<T>] {
+  const [lsState, setLsState] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(lsState));
+    } catch {}
+  }, [key, lsState]);
+  return [lsState, setLsState];
+}
+
+const formatISO = (d: Date | string | number) => new Date(d).toISOString().slice(0, 10);
 function mondayOfWeek(date: Date | string | number = new Date()) {
   const d = new Date(date);
   const day = (d.getDay() + 6) % 7; // 0=Mon
@@ -82,7 +134,6 @@ function mondayOfWeek(date: Date | string | number = new Date()) {
   d.setHours(0, 0, 0, 0);
   return d;
 }
-const formatISO = (d: Date | string | number) => new Date(d).toISOString().slice(0, 10);
 function prettyRange(weekStartISO: string) {
   const start = new Date(weekStartISO);
   const end = new Date(start);
@@ -93,32 +144,11 @@ function prettyRange(weekStartISO: string) {
   return `${f(start)}${showYear ? ", " + y : ""} – ${f(end)}${showYear ? ", " + end.getFullYear() : ""}`;
 }
 
-// Storage
-const STORAGE_PREFIX = "inner-tracker-v2.2:";
-function useLocalState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
-  const [lsState, setLsState] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as T) : initial;
-    } catch {
-      return initial;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(lsState));
-    } catch {}
-  }, [key, lsState]);
-
-  return [lsState, setLsState];
-}
-
 const deepClone = <T,>(o: T): T => JSON.parse(JSON.stringify(o)) as T;
 
-function newWeekState(weekStartISO: string) {
+function newWeekState(weekStartISO: string): WeekState {
   const habits = deepClone(DEFAULT_HABITS);
-  const ticks = Object.fromEntries(habits.map((h) => [h.id, Array(7).fill(false)]));
+  const ticks = Object.fromEntries(habits.map((h) => [h.id, Array(7).fill(false)])) as Record<string, boolean[]>;
   return {
     meta: { weekStart: weekStartISO, createdAt: new Date().toISOString(), theme: "", logoDataUrl: "" },
     metrics: { realMetricLabel: "Sleep hours", realMetricValue: "", screenTimeTarget: "2.5", dailyInnerMinutes: Array(7).fill(2), innerShareEstimate: 60 },
@@ -132,12 +162,12 @@ function newWeekState(weekStartISO: string) {
 }
 
 export default function App() {
-  const [themeDark, setThemeDark] = useLocalState("inner-theme-dark", false);
-  const [accentFrom, setAccentFrom] = useLocalState("inner-accent-from", BRAND_FROM);
-  const [accentTo, setAccentTo] = useLocalState("inner-accent-to", BRAND_TO);
-  const [weekStartISO, setWeekStartISO] = useLocalState("inner-week-start", formatISO(mondayOfWeek()));
-  const storageKey = `${STORAGE_PREFIX}${weekStartISO}`;
-  const [week, setWeek] = useLocalState(storageKey, newWeekState(weekStartISO));
+  const [themeDark, setThemeDark] = useLocalState<boolean>("inner-theme-dark", false);
+  const [accentFrom, setAccentFrom] = useLocalState<string>("inner-accent-from", BRAND_FROM);
+  const [accentTo, setAccentTo] = useLocalState<string>("inner-accent-to", BRAND_TO);
+  const [weekStartISO, setWeekStartISO] = useLocalState<string>("inner-week-start", formatISO(mondayOfWeek()));
+  const storageKey = `${"inner-tracker-v2.2:"}${weekStartISO}`;
+  const [week, setWeek] = useLocalState<WeekState>(storageKey, newWeekState(weekStartISO));
 
   useEffect(() => { if (week?.meta?.weekStart !== weekStartISO) setWeek((p) => ({ ...p, meta: { ...p.meta, weekStart: weekStartISO } })); }, [weekStartISO]);
   useEffect(() => { document.documentElement.classList.toggle("dark", !!themeDark); }, [themeDark]);
@@ -159,7 +189,7 @@ export default function App() {
   function shiftWeek(delta: number) {
     const start = new Date(weekStartISO); start.setDate(start.getDate() + delta * 7);
     const nextISO = formatISO(start); setWeekStartISO(nextISO);
-    const existing = localStorage.getItem(`${STORAGE_PREFIX}${nextISO}`);
+    const existing = localStorage.getItem(`${"inner-tracker-v2.2:"}${nextISO}`);
     if (!existing) setWeek(newWeekState(nextISO));
   }
   function resetWeek(confirmText: boolean = true) { if (!confirmText || confirm("Reset all fields for this week?")) setWeek(newWeekState(weekStartISO)); }
@@ -172,18 +202,22 @@ export default function App() {
   function importJSON(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
-      try { const data = JSON.parse(reader.result); if (data?.meta && data?.habits && data?.ticks) setWeek(data); else alert("Invalid file format"); } catch { alert("Could not read file"); }
+      try {
+        const text = (reader.result ?? "") as string;
+        const data = JSON.parse(text) as WeekState;
+        if (data?.meta && data?.habits && data?.ticks) setWeek(data); else alert("Invalid file format");
+      } catch { alert("Could not read file"); }
     };
     reader.readAsText(file);
   }
-  const fileRef = useRef(null);
-  const logoRef = useRef(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const logoRef = useRef<HTMLInputElement | null>(null);
   function printPDF() { window.print(); }
 
   function addHabit() {
     const name = prompt("New habit name"); if (!name) return;
     const id = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 24) + "-" + (Math.random()+"").slice(2,6);
-    const h = { id, name, enabled: true, kind: "inner" };
+    const h: Habit = { id, name, enabled: true, kind: "inner" };
     setWeek((prev) => ({ ...prev, habits: [...prev.habits, h], ticks: { ...prev.ticks, [id]: Array(7).fill(false) } }));
   }
   function removeHabit(id: string) {
@@ -197,7 +231,7 @@ export default function App() {
 
   function onLogoFile(file: File) {
     const reader = new FileReader();
-    reader.onload = () => setWeek((p) => ({ ...p, meta: { ...p.meta, logoDataUrl: reader.result } }));
+    reader.onload = () => setWeek((p) => ({ ...p, meta: { ...p.meta, logoDataUrl: reader.result as string } }));
     reader.readAsDataURL(file);
   }
 
@@ -216,11 +250,11 @@ export default function App() {
   }
   function removeSection(id: string) { if (!confirm("Remove this section?")) return; setWeek((p) => ({ ...p, sections: p.sections.filter((s) => s.id !== id) })); }
 
-  const gradient = { backgroundImage: `linear-gradient(135deg, ${accentFrom}, ${accentTo})` };
+  const gradient = { backgroundImage: `linear-gradient(135deg, ${accentFrom}, ${accentTo})` } as const;
 
   // helpers
   const todayIndex = ((new Date().getDay() + 6) % 7);
-  const dayDot = (on) => (<span className={`inline-block h-3 w-3 rounded-full ${on ? "bg-primary" : "bg-muted"}`} />);
+  const dayDot = (on: boolean) => (<span className={`inline-block h-3 w-3 rounded-full ${on ? "bg-primary" : "bg-muted"}`} />);
 
   return (
     <div className="min-h-screen bg-background print:bg-white" style={{ backgroundImage: `linear-gradient(135deg, ${accentFrom}33, ${accentTo}33)` }}>
@@ -228,8 +262,12 @@ export default function App() {
       <div className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-background/70 bg-background/90 border-b print:hidden">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 ring-1 ring-border overflow-hidden flex items-center justify-center" style={gradient}>
-              <img src="/inspiring-change-logo.jpeg" alt="logo" className="h-full w-full object-cover" />
+            <div className="h-9 w-9 rounded-xl shadow-sm ring-1 ring-border overflow-hidden flex items-center justify-center" style={gradient}>
+              {week.meta.logoDataUrl ? (
+                <img src={week.meta.logoDataUrl} alt="logo" className="h-full w-full object-cover" />
+              ) : (
+                <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="text-[10px] font-semibold text-center px-1">Logo</motion.div>
+              )}
             </div>
             <div>
               <h1 className="text-base md:text-xl font-bold leading-tight" style={{ color: BRAND_TEXT }}>INNER Tracker</h1>
@@ -240,7 +278,8 @@ export default function App() {
             <Button variant="outline" size="sm" onClick={() => setThemeDark((d) => !d)} aria-label="Toggle theme">
               {themeDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            
+            <Button variant="outline" size="sm" onClick={() => logoRef.current?.click()} aria-label="Upload logo"><ImagePlus className="h-4 w-4" /></Button>
+            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onLogoFile(e.target.files[0])} />
           </div>
         </div>
       </div>
@@ -351,7 +390,7 @@ export default function App() {
                         </td>
                       ))}
                       <td className="px-2 text-center align-middle">
-                        <Select value={h.kind} onValueChange={(v) => setHabitKind(h.id, v)}>
+                        <Select value={h.kind} onValueChange={(v) => setHabitKind(h.id, v as HabitKind)}>
                           <SelectTrigger className="h-8 w-[112px] mx-auto"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="inner">Inner</SelectItem>
@@ -393,7 +432,7 @@ export default function App() {
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Label className="text-xs">Kind</Label>
-                    <Select value={h.kind} onValueChange={(v)=>setHabitKind(h.id,v)}>
+                    <Select value={h.kind} onValueChange={(v)=>setHabitKind(h.id, v as HabitKind)}>
                       <SelectTrigger className="h-8 w-[112px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="inner">Inner</SelectItem>
@@ -583,6 +622,10 @@ export default function App() {
           <Button size="lg" className="rounded-full shadow-lg" onClick={addHabit} aria-label="Add habit">
             <PlusCircle className="h-5 w-5 mr-2"/> Add habit
           </Button>
+        </div>
+
+        <div className="mt-8 mb-4 text-center text-xs text-muted-foreground print:hidden">
+          <p>Deploy to <b>Vercel</b> or <b>Netlify</b>. Export/Import moves data. Accent colors match your logo—tune above.</p>
         </div>
       </div>
     </div>
