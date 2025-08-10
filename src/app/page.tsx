@@ -82,12 +82,14 @@ function mondayOfWeek(date = new Date()) {
   d.setHours(0, 0, 0, 0);
   return d;
 }
-const formatISO = (d) => new Date(d).toISOString().slice(0, 10);
-function prettyRange(weekStartISO) {
+const formatISO = (d: Date | string | number) =>
+  new Date(d).toISOString().slice(0, 10);
+
+function prettyRange(weekStartISO: string) {
   const start = new Date(weekStartISO);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  const f = (dt) => dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const f = (dt: Date) => dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const y = start.getFullYear();
   const showYear = start.getFullYear() !== end.getFullYear();
   return `${f(start)}${showYear ? ", " + y : ""} – ${f(end)}${showYear ? ", " + end.getFullYear() : ""}`;
@@ -216,7 +218,7 @@ export default function App() {
       <div className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-background/70 bg-background/90 border-b print:hidden">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 overflow-hidden flex items-center justify-center" style={gradient}>
+            <div className="h-10 w-10 ring-1 ring-border overflow-hidden flex items-center justify-center" style={gradient}>
               <img src="/inspiring-change-logo.jpeg" alt="logo" className="h-full w-full object-cover" />
             </div>
             <div>
