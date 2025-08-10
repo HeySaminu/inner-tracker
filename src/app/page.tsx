@@ -96,20 +96,24 @@ function prettyRange(weekStartISO: string) {
 // Storage
 const STORAGE_PREFIX = "inner-tracker-v2.2:";
 function useLocalState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
-  const [state, setState] = useState<T>(() => {
+  const [lsState, setLsState] = useState<T>(() => {
     try {
       const raw = localStorage.getItem(key);
-      return (raw ? (JSON.parse(raw) as T) : initial);
+      return raw ? (JSON.parse(raw) as T) : initial;
     } catch {
       return initial;
     }
   });
-  const [state, setState] = useState(() => {
-    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initial; } catch { return initial; }
-  });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch {} }, [key, state]);
-  return [state, setState];
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(lsState));
+    } catch {}
+  }, [key, lsState]);
+
+  return [lsState, setLsState];
 }
+
 const deepClone = <T,>(o: T): T => JSON.parse(JSON.stringify(o)) as T;
 
 function newWeekState(weekStartISO: string) {
