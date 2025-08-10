@@ -216,12 +216,8 @@ export default function App() {
       <div className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-background/70 bg-background/90 border-b print:hidden">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl shadow-sm ring-1 ring-border overflow-hidden flex items-center justify-center" style={gradient}>
-              {week.meta.logoDataUrl ? (
-                <img src={week.meta.logoDataUrl} alt="logo" className="h-full w-full object-cover" />
-              ) : (
-                <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="text-[10px] font-semibold text-center px-1">Logo</motion.div>
-              )}
+            <div className="h-10 w-10 overflow-hidden flex items-center justify-center" style={gradient}>
+              <img src="/inspiring-change-logo.jpeg" alt="logo" className="h-full w-full object-cover" />
             </div>
             <div>
               <h1 className="text-base md:text-xl font-bold leading-tight" style={{ color: BRAND_TEXT }}>INNER Tracker</h1>
@@ -232,8 +228,7 @@ export default function App() {
             <Button variant="outline" size="sm" onClick={() => setThemeDark((d) => !d)} aria-label="Toggle theme">
               {themeDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => logoRef.current?.click()} aria-label="Upload logo"><ImagePlus className="h-4 w-4" /></Button>
-            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onLogoFile(e.target.files[0])} />
+            
           </div>
         </div>
       </div>
@@ -576,10 +571,6 @@ export default function App() {
           <Button size="lg" className="rounded-full shadow-lg" onClick={addHabit} aria-label="Add habit">
             <PlusCircle className="h-5 w-5 mr-2"/> Add habit
           </Button>
-        </div>
-
-        <div className="mt-8 mb-4 text-center text-xs text-muted-foreground print:hidden">
-          <p>Deploy to <b>Vercel</b> or <b>Netlify</b>. Export/Import moves data. Accent colors match your logo—tune above.</p>
         </div>
       </div>
     </div>
