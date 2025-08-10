@@ -47,13 +47,13 @@ import {
  */
 
 // Types
-export type HabitKind = "inner" | "outer";
-export type Habit = { id: string; name: string; enabled: boolean; kind: HabitKind };
-export type ChecklistItem = { id: string; text: string; done: boolean };
-export type ChecklistSection = { id: string; type: "checklist"; title: string; items: ChecklistItem[] };
-export type NotesSection = { id: string; type: "notes"; title: string; text: string };
-export type NumberSection = { id: string; type: "number"; title: string; value: number };
-export type Section = ChecklistSection | NotesSection | NumberSection;
+export type HabitKind = 'inner' | 'outer'
+export type Habit = { id: string; name: string; enabled: boolean; kind: HabitKind }
+export type ChecklistItem = { id: string; text: string; done: boolean }
+export type ChecklistSection = { id: string; type: 'checklist'; title: string; items: ChecklistItem[] }
+export type NotesSection = { id: string; type: 'notes'; title: string; text: string }
+export type NumberSection = { id: string; type: 'number'; title: string; value: number }
+export type Section = ChecklistSection | NotesSection | NumberSection
 
 export type WeekState = {
   meta: { weekStart: string; createdAt: string; theme: string; logoDataUrl: string };
@@ -86,12 +86,17 @@ export type WeekState = {
     nextInnerShare: number;
     commitment: string;
   };
-};
+}
+
+// Type guards for Section union
+function isChecklist(sec: Section): sec is ChecklistSection { return sec.type === 'checklist' }
+function isNotes(sec: Section): sec is NotesSection { return sec.type === 'notes' }
+function isNumberSection(sec: Section): sec is NumberSection { return sec.type === 'number' }
 
 // Brand theme inspired by your logo (mint→sky)
 const BRAND_FROM = "#C7F36B"; // mint‑green
-const BRAND_TO = "#6FD3FF"; // sky‑blue
-const BRAND_TEXT = "#0B1220"; // deep ink for contrast
+const BRAND_TO = "#6FD3FF";   // sky‑blue
+const BRAND_TEXT = "#0B1220";  // deep ink for contrast
 
 // Defaults
 const DEFAULT_HABITS: Habit[] = [
@@ -108,21 +113,15 @@ const DEFAULT_HABITS: Habit[] = [
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const; // Monday‑start
 
-type LocalStateSetter<T> = Dispatch<SetStateAction<T>>;
-function useLocalState<T>(key: string, initial: T): [T, LocalStateSetter<T>] {
+// Storage
+const STORAGE_PREFIX = "inner-tracker-v2.2:";
+
+// Generic, non-colliding localStorage hook
+function useLocalState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
   const [lsState, setLsState] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as T) : initial;
-    } catch {
-      return initial;
-    }
+    try { const raw = localStorage.getItem(key); return raw ? (JSON.parse(raw) as T) : initial; } catch { return initial; }
   });
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(lsState));
-    } catch {}
-  }, [key, lsState]);
+  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(lsState)); } catch {} }, [key, lsState]);
   return [lsState, setLsState];
 }
 
@@ -166,7 +165,7 @@ export default function App() {
   const [accentFrom, setAccentFrom] = useLocalState<string>("inner-accent-from", BRAND_FROM);
   const [accentTo, setAccentTo] = useLocalState<string>("inner-accent-to", BRAND_TO);
   const [weekStartISO, setWeekStartISO] = useLocalState<string>("inner-week-start", formatISO(mondayOfWeek()));
-  const storageKey = `${"inner-tracker-v2.2:"}${weekStartISO}`;
+  const storageKey = `${STORAGE_PREFIX}${weekStartISO}`;
   const [week, setWeek] = useLocalState<WeekState>(storageKey, newWeekState(weekStartISO));
 
   useEffect(() => { if (week?.meta?.weekStart !== weekStartISO) setWeek((p) => ({ ...p, meta: { ...p.meta, weekStart: weekStartISO } })); }, [weekStartISO]);
@@ -189,7 +188,7 @@ export default function App() {
   function shiftWeek(delta: number) {
     const start = new Date(weekStartISO); start.setDate(start.getDate() + delta * 7);
     const nextISO = formatISO(start); setWeekStartISO(nextISO);
-    const existing = localStorage.getItem(`${"inner-tracker-v2.2:"}${nextISO}`);
+    const existing = localStorage.getItem(`${STORAGE_PREFIX}${nextISO}`);
     if (!existing) setWeek(newWeekState(nextISO));
   }
   function resetWeek(confirmText: boolean = true) { if (!confirmText || confirm("Reset all fields for this week?")) setWeek(newWeekState(weekStartISO)); }
@@ -202,11 +201,7 @@ export default function App() {
   function importJSON(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
-      try {
-        const text = (reader.result ?? "") as string;
-        const data = JSON.parse(text) as WeekState;
-        if (data?.meta && data?.habits && data?.ticks) setWeek(data); else alert("Invalid file format");
-      } catch { alert("Could not read file"); }
+      try { const text = (reader.result ?? '') as string; const data = JSON.parse(text) as WeekState; if (data?.meta && data?.habits && data?.ticks) setWeek(data); else alert("Invalid file format"); } catch { alert("Could not read file"); }
     };
     reader.readAsText(file);
   }
@@ -506,24 +501,63 @@ export default function App() {
                   <Button variant="ghost" size="icon" onClick={()=>removeSection(s.id)} aria-label="Remove section"><Trash2 className="h-4 w-4"/></Button>
                 </CardHeader>
                 <CardContent>
-                  {s.type === "checklist" && (
+                  {isChecklist(s) && (
                     <div className="space-y-2">
-                      {(s.items||[]).map((it, idx) => (
+                      {(s.items ?? []).map((it, idx) => (
                         <div key={it.id} className="flex items-center gap-2">
-                          <Checkbox checked={!!it.done} onCheckedChange={(v)=>setWeek((p)=>({ ...p, sections: p.sections.map(x=>x.id===s.id?{...x, items: x.items.map((y,i)=> i===idx?{...y, done:!!v}:y)}:x) }))} />
-                          <Input value={it.text} onChange={(e)=>setWeek((p)=>({ ...p, sections: p.sections.map(x=>x.id===s.id?{...x, items: x.items.map((y,i)=> i===idx?{...y, text:e.target.value}:y)}:x) }))} />
+                          <Checkbox
+                            checked={!!it.done}
+                            onCheckedChange={(v) =>
+                              setWeek((p) => ({
+                                ...p,
+                                sections: p.sections.map((x) =>
+                                  isChecklist(x) && x.id === s.id
+                                    ? { ...x, items: x.items.map((y, i) => (i === idx ? { ...y, done: !!v } : y)) }
+                                    : x
+                                ),
+                              }))
+                            }
+                          />
+                          <Input
+                            value={it.text}
+                            onChange={(e) =>
+                              setWeek((p) => ({
+                                ...p,
+                                sections: p.sections.map((x) =>
+                                  isChecklist(x) && x.id === s.id
+                                    ? { ...x, items: x.items.map((y, i) => (i === idx ? { ...y, text: e.target.value } : y)) }
+                                    : x
+                                ),
+                              }))
+                            }
+                          />
                         </div>
                       ))}
-                      <Button size="sm" variant="outline" onClick={()=>setWeek((p)=>({ ...p, sections: p.sections.map(x=>x.id===s.id?{...x, items:[...x.items, { id:`i-${(Math.random()+"").slice(2,6)}`, text:"New item", done:false }]}:x) }))}><Plus className="h-4 w-4 mr-1"/>Add Item</Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setWeek((p) => ({
+                            ...p,
+                            sections: p.sections.map((x) =>
+                              isChecklist(x) && x.id === s.id
+                                ? { ...x, items: [...x.items, { id: `i-${(Math.random() + "").slice(2, 6)}`, text: "New item", done: false }] }
+                                : x
+                            ),
+                          }))
+                        }
+                      >
+                        <Plus className="h-4 w-4 mr-1" />Add Item
+                      </Button>
                     </div>
                   )}
-                  {s.type === "notes" && (
-                    <Textarea rows={5} value={s.text||""} onChange={(e)=>setWeek((p)=>({ ...p, sections: p.sections.map(x=>x.id===s.id?{...x, text:e.target.value}:x) }))} placeholder="Write freely…" />
+                  {isNotes(s) && (
+                    <Textarea rows={5} value={s.text || ""} onChange={(e)=>setWeek((p)=>({ ...p, sections: p.sections.map(x=> isNotes(x) && x.id===s.id ? { ...x, text:e.target.value } : x) }))} placeholder="Write freely…" />
                   )}
-                  {s.type === "number" && (
+                  {isNumberSection(s) && (
                     <div className="flex items-center gap-3">
                       <Label className="text-sm">Value</Label>
-                      <Input type="number" value={s.value||0} onChange={(e)=>setWeek((p)=>({ ...p, sections: p.sections.map(x=>x.id===s.id?{...x, value:Number(e.target.value||0)}:x) }))} className="w-40" />
+                      <Input type="number" value={s.value || 0} onChange={(e)=>setWeek((p)=>({ ...p, sections: p.sections.map(x=> isNumberSection(x) && x.id===s.id ? { ...x, value: Number(e.target.value || 0) } : x) }))} className="w-40" />
                     </div>
                   )}
                 </CardContent>
