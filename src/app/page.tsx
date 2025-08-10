@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { motion } from "framer-motion";
 import {
   Card,
@@ -75,16 +75,14 @@ const DEFAULT_HABITS: Habit[] = [
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; // Monday‑start
 
-function mondayOfWeek(date = new Date()) {
+function mondayOfWeek(date: Date | string | number = new Date()) {
   const d = new Date(date);
   const day = (d.getDay() + 6) % 7; // 0=Mon
   d.setDate(d.getDate() - day);
   d.setHours(0, 0, 0, 0);
   return d;
 }
-const formatISO = (d: Date | string | number) =>
-  new Date(d).toISOString().slice(0, 10);
-
+const formatISO = (d: Date | string | number) => new Date(d).toISOString().slice(0, 10);
 function prettyRange(weekStartISO: string) {
   const start = new Date(weekStartISO);
   const end = new Date(start);
@@ -97,16 +95,24 @@ function prettyRange(weekStartISO: string) {
 
 // Storage
 const STORAGE_PREFIX = "inner-tracker-v2.2:";
-function useLocalState(key, initial) {
+function useLocalState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
+  const [state, setState] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return (raw ? (JSON.parse(raw) as T) : initial);
+    } catch {
+      return initial;
+    }
+  });
   const [state, setState] = useState(() => {
     try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : initial; } catch { return initial; }
   });
   useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch {} }, [key, state]);
   return [state, setState];
 }
-const deepClone = (o) => JSON.parse(JSON.stringify(o));
+const deepClone = <T,>(o: T): T => JSON.parse(JSON.stringify(o)) as T;
 
-function newWeekState(weekStartISO) {
+function newWeekState(weekStartISO: string) {
   const habits = deepClone(DEFAULT_HABITS);
   const ticks = Object.fromEntries(habits.map((h) => [h.id, Array(7).fill(false)]));
   return {
@@ -146,20 +152,20 @@ export default function App() {
   const targetInnerMinutes = 2 * 7;
   const innerProgress = Math.min(100, Math.round((totalInnerMinutes / targetInnerMinutes) * 100));
 
-  function shiftWeek(delta) {
+  function shiftWeek(delta: number) {
     const start = new Date(weekStartISO); start.setDate(start.getDate() + delta * 7);
     const nextISO = formatISO(start); setWeekStartISO(nextISO);
     const existing = localStorage.getItem(`${STORAGE_PREFIX}${nextISO}`);
     if (!existing) setWeek(newWeekState(nextISO));
   }
-  function resetWeek(confirmText = true) { if (!confirmText || confirm("Reset all fields for this week?")) setWeek(newWeekState(weekStartISO)); }
+  function resetWeek(confirmText: boolean = true) { if (!confirmText || confirm("Reset all fields for this week?")) setWeek(newWeekState(weekStartISO)); }
 
   function exportJSON() {
     const blob = new Blob([JSON.stringify(week, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const a = document.createElement("a");
     a.href = url; a.download = `inner-${weekStartISO}.json`; a.click(); URL.revokeObjectURL(url);
   }
-  function importJSON(file) {
+  function importJSON(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
       try { const data = JSON.parse(reader.result); if (data?.meta && data?.habits && data?.ticks) setWeek(data); else alert("Invalid file format"); } catch { alert("Could not read file"); }
@@ -176,16 +182,16 @@ export default function App() {
     const h = { id, name, enabled: true, kind: "inner" };
     setWeek((prev) => ({ ...prev, habits: [...prev.habits, h], ticks: { ...prev.ticks, [id]: Array(7).fill(false) } }));
   }
-  function removeHabit(id) {
+  function removeHabit(id: string) {
     if (!confirm("Remove this habit?")) return;
     setWeek((prev) => { const habits = prev.habits.filter((h) => h.id !== id); const { [id]: _, ...rest } = prev.ticks; return { ...prev, habits, ticks: rest }; });
   }
-  function setTick(habitId, dayIndex, val) { setWeek((prev) => ({ ...prev, ticks: { ...prev.ticks, [habitId]: prev.ticks[habitId].map((b, i) => (i === dayIndex ? val : b)) } })); }
-  function setHabitName(id, name) { setWeek((prev) => ({ ...prev, habits: prev.habits.map((h) => (h.id === id ? { ...h, name } : h)) })); }
-  function setHabitEnabled(id, enabled) { setWeek((prev) => ({ ...prev, habits: prev.habits.map((h) => (h.id === id ? { ...h, enabled } : h)) })); }
-  function setHabitKind(id, kind) { setWeek((prev) => ({ ...prev, habits: prev.habits.map((h) => (h.id === id ? { ...h, kind } : h)) })); }
+  function setTick(habitId: string, dayIndex: number, val: boolean) { setWeek((prev) => ({ ...prev, ticks: { ...prev.ticks, [habitId]: prev.ticks[habitId].map((b, i) => (i === dayIndex ? val : b)) } })); }
+  function setHabitName(id: string, name: string) { setWeek((prev) => ({ ...prev, habits: prev.habits.map((h) => (h.id === id ? { ...h, name } : h)) })); }
+  function setHabitEnabled(id: string, enabled: boolean) { setWeek((prev) => ({ ...prev, habits: prev.habits.map((h) => (h.id === id ? { ...h, enabled } : h)) })); }
+  function setHabitKind(id: string, kind: HabitKind) { setWeek((prev) => ({ ...prev, habits: prev.habits.map((h) => (h.id === id ? { ...h, kind } : h)) })); }
 
-  function onLogoFile(file) {
+  function onLogoFile(file: File) {
     const reader = new FileReader();
     reader.onload = () => setWeek((p) => ({ ...p, meta: { ...p.meta, logoDataUrl: reader.result } }));
     reader.readAsDataURL(file);
@@ -204,7 +210,7 @@ export default function App() {
     }
     setWeek((p) => ({ ...p, sections: [...p.sections, section] }));
   }
-  function removeSection(id) { if (!confirm("Remove this section?")) return; setWeek((p) => ({ ...p, sections: p.sections.filter((s) => s.id !== id) })); }
+  function removeSection(id: string) { if (!confirm("Remove this section?")) return; setWeek((p) => ({ ...p, sections: p.sections.filter((s) => s.id !== id) })); }
 
   const gradient = { backgroundImage: `linear-gradient(135deg, ${accentFrom}, ${accentTo})` };
 
