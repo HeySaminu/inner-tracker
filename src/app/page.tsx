@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { GoogleAnalytics } from '@next/third-parties/google'
 import {
   Card,
   CardHeader,
